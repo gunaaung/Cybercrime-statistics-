@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>สถิติและผลดำเนินการคดีอาชญากรรมทางเทคโนโลยี</title>
-    <!-- Libraries ในลำดับที่ถูกต้อง -->
+    <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/prop-types@15.8.1/prop-types.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.10/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -17,15 +15,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; }
-        .recharts-cartesian-axis-tick-value { font-size: 10px; font-weight: 600; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        select { cursor: pointer; }
-        .table-container { max-height: 600px; overflow-y: auto; }
-        .modal-overlay { background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
-        .dropdown-content { max-height: 400px; overflow-y: auto; z-index: 100; }
+        .dropdown-content { max-height: 400px; overflow-y: auto; z-index: 999; }
         .tab-active { border-bottom: 3px solid #4f46e5; color: #4f46e5; }
+        .filter-container { transition: all 0.3s ease; }
     </style>
 </head>
 <body>
@@ -33,22 +28,14 @@
 
     <script type="text/babel">
         const { useState, useMemo, useEffect, useRef } = React;
-        const { 
-            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-            Cell 
-        } = Recharts;
 
         const Icon = ({ name, size = 20, className = "" }) => {
             useEffect(() => { if (window.lucide) { window.lucide.createIcons(); } }, [name]);
             return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
         };
 
-        const THAI_MONTHS = [
-            "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-            "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-        ];
+        const THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
-        // --- จัดกลุ่มประเภทคดี 1-8 ---
         const CRIME_MAPPING = {
             "คดีหลอกลวงซื้อขายบริการ": "1.คดีซื้อสินค้าแต่ไม่ได้สินค้า (ไม่มีลักษณะเป็นขบวนการ)",
             "คดีหลอกลวงซื้อขายสินค้า": "1.คดีซื้อสินค้าแต่ไม่ได้สินค้า (ไม่มีลักษณะเป็นขบวนการ)",
@@ -56,6 +43,7 @@
             "คดีซื้อสินค้าแต่ไม่ได้สินค้า (ไม่มีลักษณะเป็นขบวนการ)": "1.คดีซื้อสินค้าแต่ไม่ได้สินค้า (ไม่มีลักษณะเป็นขบวนการ)",
             "หลอกลวงเป็นบุคคลอื่นเพื่อยืมเงิน": "2.หลอกลวงเป็นบุคคลอื่นเพื่อยืมเงิน",
             "คดีปลอมโปรไฟล์เพื่อหลอกยืมเงิน": "2.หลอกลวงเป็นบุคคลอื่นเพื่อยืมเงิน",
+            "คดีหลอกลวงเป็นบุคคลอื่นเพื่อยืมเงิน": "2.หลอกลวงเป็นบุคคลอื่นเพื่อยืมเงิน",
             "คดีหลอกให้รักแล้วโอนเงิน (Romance Scam)": "3.หลอกลวงให้รักแล้วโอนเงิน (Romance Scam)",
             "หลอกลวงให้รักแล้วโอนเงิน (Romance Scam)": "3.หลอกลวงให้รักแล้วโอนเงิน (Romance Scam)",
             "คดีหลอกลวงให้โอนเงินเพื่อรับรางวัลหรือสิทธิประโยชน์": "4.หลอกลวงให้โอนเงินเพื่อรับรางวัลหรือวัตถุประสงค์อื่นๆ",
@@ -70,39 +58,33 @@
 
         const TYPES_TO_GROUP_AS_OTHER = [
             "กระทำต่อระบบหรือข้อมูลคอมพิวเตอร์โดยผิดกฎหมาย (Hacking) เพื่อฉ้อโกง กรรโชก หรือรีดเอาทรัพย์",
-            "การพนันออนไลน์ อาชญากรรรมข้ามชาติ",
-            "การหลอกลวงจำหน่ายสินค้าออนไลน์และสินค้าผิดกฎหมาย",
-            "การหลอกลวงออนไลน์ทางด้านการเงิน",
-            "คดีหลอกลวงให้ลงทุน ที่ไม่เข้าลักษณะฉ้อโกงประชาชน",
-            "คดีหลอกลวงให้โอนเงิน ที่ไม่มีลักษณะเป็นขบวนการ",
-            "คดีอาชญากรรมทางเทคโนโลยีทางลักษณะอื่นๆ",
-            "คดีอื่นๆ", "หลอกลวงซื้อขายสินค้าหรือบริการ ที่มีลักษณะเป็นขบวนการ",
-            "หลอกลวงให้ติดตั้งโปรแกรมควบคุมระบบในเครื่องโทรศัพท์", "หลอกลวงให้ลงทุนผ่านระบบคอมพิวเตอร์",
-            "อื่นๆ", "ไม่ระบุ"
+            "การพนันออนไลน์ อาชญากรรรมข้ามชาติ", "การหลอกลวงจำหน่ายสินค้าออนไลน์และสินค้าผิดกฎหมาย",
+            "การหลอกลวงออนไลน์ทางด้านการเงิน", "คดีหลอกลวงให้ลงทุน ที่ไม่เข้าลักษณะฉ้อโกงประชาชน",
+            "คดีหลอกลวงให้โอนเงิน ที่ไม่มีลักษณะเป็นขบวนการ", "คดีอาชญากรรมทางเทคโนโลยีทางลักษณะอื่นๆ", "คดีอื่นๆ",
+            "หลอกลวงซื้อขายสินค้าหรือบริการ ที่มีลักษณะเป็นขบวนการ", "หลอกลวงให้ติดตั้งโปรแกรมควบคุมระบบในเครื่องโทรศัพท์",
+            "หลอกลวงให้ลงทุนผ่านระบบคอมพิวเตอร์", "อื่นๆ", "ไม่ระบุ"
         ];
 
         const App = () => {
             const [mainData, setMainData] = useState([]);
             const [recoveryMap, setRecoveryMap] = useState({});
             const [arrestCountsMap, setArrestCountsMap] = useState({});
-            const [attachmentMap, setAttachmentMap] = useState({}); 
-            const [selectedTypes, setSelectedTypes] = useState([]); 
-            const [selectedStatuses, setSelectedStatuses] = useState([]); 
+            const [attachmentMap, setAttachmentMap] = useState({});
+            const [selectedTypes, setSelectedTypes] = useState([]);
+            const [selectedStatuses, setSelectedStatuses] = useState([]);
             const [searchTerm, setSearchTerm] = useState('');
             const [loadStatus, setLoadStatus] = useState('');
-            const [selectedDetail, setSelectedDetail] = useState(null); 
-            const [modalTab, setModalTab] = useState('cases');
-            const [modalSearch, setModalSearch] = useState('');
-            const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-            const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-            const dropdownRef = useRef(null);
-            const statusDropdownRef = useRef(null);
             
             const currentThaiYear = new Date().getFullYear() + 543;
             const [startMonth, setStartMonth] = useState(0);
             const [startYear, setStartYear] = useState(currentThaiYear);
             const [endMonth, setEndMonth] = useState(11);
             const [endYear, setEndYear] = useState(currentThaiYear);
+
+            const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+            const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+            const dropdownRef = useRef(null);
+            const statusDropdownRef = useRef(null);
 
             useEffect(() => {
                 const handleClickOutside = (event) => {
@@ -116,16 +98,12 @@
             const parseThaiDate = (dateStr) => {
                 if (!dateStr || typeof dateStr !== 'string') return null;
                 const parts = dateStr.split('/');
-                if (parts.length < 3) {
-                   const hyphens = dateStr.split('-');
-                   if (hyphens.length >= 3) return { date: new Date(hyphens[0], hyphens[1]-1, hyphens[2].split(' ')[0]), thaiYear: parseInt(hyphens[0]) > 2400 ? parseInt(hyphens[0]) : parseInt(hyphens[0])+543, month: hyphens[1]-1 };
-                   return null;
-                }
+                if (parts.length < 3) return null;
                 const day = parseInt(parts[0]);
                 const month = parseInt(parts[1]) - 1;
                 let year = parseInt(parts[2].split(' ')[0]);
                 const originalYear = year;
-                if (year > 2400) year -= 543; 
+                if (year > 2400) year -= 543;
                 return { date: new Date(year, month, day), thaiYear: originalYear > 2400 ? originalYear : originalYear + 543, month: month };
             };
 
@@ -168,32 +146,26 @@
                     const attach = attachmentMap[item.caseId];
                     return { 
                         ...item, 
-                        isRecovered: !!recoveryInfo, 
-                        recoveredAmount: recoveryInfo?.recoveredAmount || 0,
-                        warrantCount: arrestInfo.warrants,
-                        arrestedCount: arrestInfo.arrests,
-                        statementAttached: attach?.statementAttached || false,
-                        propertyAttached: attach?.propertyAttached || false
+                        isRecovered: !!recoveryInfo, recoveredAmount: recoveryInfo?.recoveredAmount || 0,
+                        warrantCount: arrestInfo.warrants, arrestedCount: arrestInfo.arrests,
+                        statementAttached: attach?.statementAttached || false, propertyAttached: attach?.propertyAttached || false
                     };
                 });
             }, [mainData, recoveryMap, arrestCountsMap, attachmentMap, selectedTypes, selectedStatuses, searchTerm, startMonth, startYear, endMonth, endYear]);
 
+            // --- Calculation Memo ---
             const stats = useMemo(() => {
-                let awaitingInterview = 0; let awaitingBank = 0; let pros = 0; let closed = 0; let recoveredCount = 0; let totalRecoveredMoney = 0;
-                let totalWarrants = 0; let totalArrested = 0;
-                const investigatorMap = {};
-                finalData.forEach(item => {
-                    const officer = item.officer || 'ไม่ระบุพนักงานสอบสวน';
-                    if (!investigatorMap[officer]) { investigatorMap[officer] = { total: 0, completed: 0, prosecuted: 0, processing: 0, recovered: 0, recoveredMoney: 0, interview: 0, warrants: 0, arrests: 0 }; }
-                    investigatorMap[officer].total += 1;
-                    if (item.isRecovered) { recoveredCount++; totalRecoveredMoney += item.recoveredAmount; investigatorMap[officer].recovered += 1; investigatorMap[officer].recoveredMoney += item.recoveredAmount; }
-                    totalWarrants += item.warrantCount; totalArrested += item.arrestedCount;
-                    investigatorMap[officer].warrants += item.warrantCount; investigatorMap[officer].arrests += item.arrestedCount;
-                    if (item.status?.includes('นัดหมาย')) { awaitingInterview++; investigatorMap[officer].interview += 1; }
-                    else if (item.status?.includes('ส่งสำนวนอัยการ') || item.status === 'ส่งพนักงานอัยการ') { pros++; investigatorMap[officer].prosecuted += 1; }
-                    else if (item.status?.includes('สิ้นสุด')) { closed++; investigatorMap[officer].completed += 1; }
-                    else if (item.status?.includes('ธนาคาร') || item.status?.includes('หมายเรียก') || item.status?.includes('พนักงานสอบสวน') || item.status?.includes('ดำเนินการ')) { awaitingBank++; investigatorMap[officer].processing += 1; }
-                });
+                let totalRecoveredMoney = 0;
+                finalData.forEach(item => { if (item.isRecovered) { totalRecoveredMoney += item.recoveredAmount; } });
+
+                const awaitingInterview = finalData.filter(item => item.status?.includes('นัดหมาย')).length;
+                const awaitingBank = finalData.filter(item => item.status?.includes('ธนาคาร') || item.status?.includes('หมายเรียก') || item.status?.includes('พนักงานสอบสวน') || item.status?.includes('ดำเนินการ')).length;
+                const pros = finalData.filter(item => item.status?.includes('ส่งสำนวนอัยการ') || item.status === 'ส่งพนักงานอัยการ').length;
+                const closed = finalData.filter(item => item.status?.includes('สิ้นสุด')).length;
+                const totalWarrants = finalData.reduce((sum, item) => sum + item.warrantCount, 0);
+                const totalArrested = finalData.reduce((sum, item) => sum + item.arrestedCount, 0);
+                const recoveredCount = finalData.filter(item => item.isRecovered).length;
+
                 const operationalStats = [
                     { id: 'total', name: 'คดีรับแจ้งรวม', value: finalData.length, color: '#64748b', icon: 'file-text', desc: '(ทั้งหมดในช่วงเวลา)' },
                     { id: 'interview', name: 'รอสอบสวนปากคำ', value: awaitingInterview, color: '#f59e0b', icon: 'user-check', desc: '(สถานะ: นัดหมายผู้แจ้ง)' },
@@ -204,6 +176,19 @@
                     { id: 'arrests', name: 'จับกุมได้แล้ว', value: totalArrested, color: '#312e81', icon: 'handcuffs', desc: '(คลิกดู CASE ที่จับได้)' },
                     { id: 'recovered', name: 'ได้รับเงินคืน', value: recoveredCount, color: '#ec4899', icon: 'hand-coins', desc: '(จากรายการเงินคืน)' }
                 ];
+
+                const investigatorMap = {};
+                finalData.forEach(item => {
+                    const officer = item.officer || 'ไม่ระบุพนักงานสอบสวน';
+                    if (!investigatorMap[officer]) { investigatorMap[officer] = { total: 0, completed: 0, prosecuted: 0, processing: 0, recovered: 0, recoveredMoney: 0, interview: 0, warrants: 0, arrests: 0 }; }
+                    investigatorMap[officer].total += 1;
+                    if (item.isRecovered) { investigatorMap[officer].recovered += 1; investigatorMap[officer].recoveredMoney += item.recoveredAmount; }
+                    investigatorMap[officer].warrants += item.warrantCount; investigatorMap[officer].arrests += item.arrestedCount;
+                    if (item.status?.includes('นัดหมาย')) { investigatorMap[officer].interview += 1; }
+                    else if (item.status?.includes('ส่งสำนวนอัยการ')) { investigatorMap[officer].prosecuted += 1; }
+                    else if (item.status?.includes('สิ้นสุด')) { investigatorMap[officer].completed += 1; }
+                });
+
                 return { operationalStats, investigatorData: Object.entries(investigatorMap).map(([name, s]) => ({ name, ...s })).sort((a, b) => b.total - a.total), totalRecoveredMoney };
             }, [finalData]);
 
@@ -211,7 +196,6 @@
             const handleMainFileUpload = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
-                setLoadStatus('กำลังประมวลผลไฟล์หลัก...');
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
@@ -238,14 +222,14 @@
                             if (CRIME_MAPPING[rawType]) { entry.type = CRIME_MAPPING[rawType]; } 
                             else if (TYPES_TO_GROUP_AS_OTHER.includes(rawType)) { entry.type = "8.ประเภทอื่นๆ(อาชญากรรมทางเทคโนโลยี)"; } 
                             else { entry.type = rawType || "ไม่ระบุ"; }
-                            entry.victim = findVal(['ผู้เสียหาย', 'victim']); entry.status = findVal(['สถานะ', 'status']); entry.org = findVal(['หน่วยที่รับผิดชอบ', 'unit', 'org']);
+                            entry.victim = findVal(['ผู้เสียหาย', 'victim']); entry.status = findVal(['สถานะ', 'status']);
                             entry.dateStr = dateRaw;
                             return entry;
                         }).filter(item => item.caseId);
                         setMainData(parsed); setLoadStatus(`โหลดสำเร็จ: ${parsed.length} รายการ`);
                         const years = parsed.map(d => d.thaiYear).filter(y => y > 0);
                         if (years.length > 0) { setStartYear(Math.min(...years)); setEndYear(Math.max(...years)); }
-                    } catch (err) { setLoadStatus('เกิดข้อผิดพลาดในการอ่านไฟล์'); }
+                    } catch (err) { setLoadStatus('เกิดข้อผิดพลาดในการอ่านไฟล์หลัก'); }
                 };
                 reader.readAsText(file);
             };
@@ -258,19 +242,15 @@
                     try {
                         let text = e.target.result.replace(/^\uFEFF/, '');
                         const rows = text.split(/\r?\n/).filter(r => r.trim() !== "");
-                        if (rows.length < 2) return;
                         const delimiter = rows[0].split(';').length > rows[0].split(',').length ? ';' : ',';
                         const headers = rows[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
                         const caseIdx = headers.findIndex(h => h.includes('เลขรับแจ้ง') || h.includes('เคสไอดี') || h.toUpperCase().includes('CASE ID'));
-                        const moneyIdx = headers.findIndex(h => h.includes('เงิน') || h.includes('ยอด') || h.includes('จำนวน'));
+                        const moneyIdx = headers.findIndex(h => h.includes('เงิน') || h.includes('ยอด'));
                         const map = {};
                         rows.slice(1).forEach(row => {
                             const values = splitCSVLine(row, delimiter);
-                            const caseId = values[caseIdx]?.trim().replace(/"/g, '');
-                            if (caseId) {
-                                const amount = parseFloat(String(values[moneyIdx])?.replace(/,/g, '')) || 0;
-                                map[caseId] = { recovered: true, recoveredAmount: amount };
-                            }
+                            const caseId = values[caseIdx]?.trim();
+                            if (caseId) map[caseId] = { recovered: true, recoveredAmount: parseFloat(String(values[moneyIdx])?.replace(/,/g, '')) || 0 };
                         });
                         setRecoveryMap(map); setLoadStatus(`นำเข้าข้อมูลเงินคืนสำเร็จ`);
                     } catch (err) { setLoadStatus('นำเข้าเงินคืนไม่สำเร็จ'); }
@@ -288,20 +268,20 @@
                         const rows = text.split(/\r?\n/).filter(r => r.trim() !== "");
                         const delimiter = rows[0].split(';').length > rows[0].split(',').length ? ';' : ',';
                         const headers = rows[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
-                        const caseIdIdx = headers.findIndex(h => h.includes('เคสไอดี') || h.toUpperCase().includes('CASE ID') || h.includes('เลขรับแจ้ง'));
+                        const caseIdIdx = headers.findIndex(h => h.includes('เคสไอดี') || h.toUpperCase().includes('CASE ID'));
                         const arrestStatusIdx = headers.findIndex(h => h.includes('สถานะการจับกุม'));
                         const counts = {}; 
                         rows.slice(1).forEach(row => {
                             const values = splitCSVLine(row, delimiter);
-                            const caseId = values[caseIdIdx]?.trim().replace(/"/g, '');
-                            if (caseId && caseId !== "") {
+                            const caseId = values[caseIdIdx]?.trim();
+                            if (caseId) {
                                 if (!counts[caseId]) counts[caseId] = { warrants: 0, arrests: 0 };
                                 counts[caseId].warrants += 1;
                                 if (values[arrestStatusIdx]?.trim() !== "") counts[caseId].arrests += 1;
                             }
                         });
                         setArrestCountsMap(counts); setLoadStatus(`อัปเดตข้อมูลหมายจับสำเร็จ`);
-                    } catch (err) { setLoadStatus('ไม่สามารถอ่านไฟล์หมายจับได้'); }
+                    } catch (err) { setLoadStatus('นำเข้าไฟล์หมายจับไม่สำเร็จ'); }
                 };
                 reader.readAsText(file);
             };
@@ -309,217 +289,182 @@
             const handleAttachmentFileUpload = (event) => {
                 const file = event.target.files[0];
                 if (!file) return;
-                setLoadStatus('กำลังวิเคราะห์สถานะการแนบไฟล์...');
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
                         let text = e.target.result.replace(/^\uFEFF/, '');
                         const rows = text.split(/\r?\n/).filter(r => r.trim() !== "");
-                        if (rows.length < 2) return;
                         const delimiter = rows[0].split(';').length > rows[0].split(',').length ? ';' : ',';
                         const headers = rows[0].split(delimiter).map(h => h.trim().replace(/"/g, ''));
-                        
-                        // รองรับหัวข้อ "เลขเคสไอดี" จากไฟล์จริงของคุณ
-                        const caseIdx = headers.findIndex(h => h.includes('เคสไอดี') || h.includes('เลขรับแจ้ง') || h.toUpperCase().includes('CASE ID'));
+                        const caseIdx = headers.findIndex(h => h.includes('เคสไอดี') || h.includes('เลขรับแจ้ง'));
                         const statementIdx = headers.findIndex(h => h.includes('คำให้การ'));
-                        const propertyIdx = headers.findIndex(h => h.includes('บัญชีทรัพย์') || h.includes('ประทุษร้าย'));
-
-                        if (caseIdx === -1) {
-                            setLoadStatus('ไม่พบคอลัมน์รหัสเคสในไฟล์แนบไฟล์ (ต้องการ: เลขเคสไอดี)');
-                            return;
-                        }
-
+                        const propertyIdx = headers.findIndex(h => h.includes('บัญชีทรัพย์'));
                         const map = {};
                         rows.slice(1).forEach(row => {
                             const values = splitCSVLine(row, delimiter);
-                            const caseId = values[caseIdx]?.trim().replace(/"/g, '');
+                            const caseId = values[caseIdx]?.trim();
                             if (caseId) {
-                                // ตรวจสอบค่า "แนบแล้ว" อย่างเจาะจงตามเงื่อนไขที่พี่ต้องการ
                                 map[caseId] = {
                                     statementAttached: values[statementIdx]?.trim() === "แนบแล้ว",
                                     propertyAttached: values[propertyIdx]?.trim() === "แนบแล้ว"
                                 };
                             }
                         });
-                        setAttachmentMap(map);
-                        setLoadStatus(`นำเข้าข้อมูลไฟล์แนบสำเร็จ (${Object.keys(map).length} รายการ)`);
-                    } catch (err) { 
-                        console.error(err);
-                        setLoadStatus('นำเข้าไฟล์แนบไม่สำเร็จ'); 
-                    }
+                        setAttachmentMap(map); setLoadStatus(`นำเข้าข้อมูลไฟล์แนบสำเร็จ`);
+                    } catch (err) { setLoadStatus('นำเข้าไฟล์แนบไม่สำเร็จ'); }
                 };
                 reader.readAsText(file);
             };
 
             const exportToExcel = () => {
                 if (finalData.length === 0) return;
-                const getCaseCode = (id) => {
-                    if (!id) return 'Other';
-                    const first = String(id).charAt(0).toUpperCase();
-                    return ['W', 'L', 'T', 'C'].includes(first) ? first : 'Other';
-                };
+                const getCode = (id) => { const first = String(id).charAt(0).toUpperCase(); return ['W', 'L', 'T', 'C'].includes(first) ? first : 'O'; };
                 const codes = ['W', 'L', 'T', 'C'];
-                const summaryCounts = {
-                    total: { W:0, L:0, T:0, C:0 },
-                    interviewed: { W:0, L:0, T:0, C:0 },
-                    notInterviewed: { W:0, L:0, T:0, C:0 },
-                    over7Days: { W:0, L:0, T:0, C:0 },
-                    statusMap: {
-                        'พบพนักงานสอบสวน': { W:0, L:0, T:0, C:0 },
-                        'ระหว่างดำเนินการ': { W:0, L:0, T:0, C:0 },
-                        'อายัดบัญชี': { W:0, L:0, T:0, C:0 },
-                        'ออกหมายเรียก': { W:0, L:0, T:0, C:0 },
-                        'ออกหมายจับ': { W:0, L:0, T:0, C:0 },
-                        'จับกุม': { W:0, L:0, T:0, C:0 },
-                        'ความเห็นทางคดี': { W:0, L:0, T:0, C:0 },
-                        'ส่งสำนวนอัยการ': { W:0, L:0, T:0, C:0 }
-                    },
-                    arrests: { total: { W:0, L:0, T:0, C:0 }, done: { W:0, L:0, T:0, C:0 }, pending: { W:0, L:0, T:0, C:0 } },
-                    recovery: { cases: { W:0, L:0, T:0, C:0 }, sum: { W:0, L:0, T:0, C:0 } },
-                    finish: { 'รวมจบทั้งหมด': { W:0, L:0, T:0, C:0 }, 'ส่งพนักงานอัยการจริง': { W:0, L:0, T:0, C:0 }, 'จบด้วยเหตุผลอื่น': { W:0, L:0, T:0, C:0 }, 'ไม่เข้าพบ': { W:0, L:0, T:0, C:0 }, 'ถอนคำร้อง': { W:0, L:0, T:0, C:0 }, 'ติดต่อไม่ได้': { W:0, L:0, T:0, C:0 } },
-                    attachments: { statement: { W:0, L:0, T:0, C:0 }, property: { W:0, L:0, T:0, C:0 }, noStatement: { W:0, L:0, T:0, C:0 }, noProperty: { W:0, L:0, T:0, C:0 } }
+                const counts = {
+                    total: {W:0,L:0,T:0,C:0,O:0}, intv: {W:0,L:0,T:0,C:0,O:0}, notIntv: {W:0,L:0,T:0,C:0,O:0}, over7: {W:0,L:0,T:0,C:0,O:0},
+                    attStmt: {W:0,L:0,T:0,C:0,O:0}, attProp: {W:0,L:0,T:0,C:0,O:0}, noStmt: {W:0,L:0,T:0,C:0,O:0}, noProp: {W:0,L:0,T:0,C:0,O:0},
+                    arrTot: {W:0,L:0,T:0,C:0,O:0}, arrDone: {W:0,L:0,T:0,C:0,O:0},
+                    recCases: {W:0,L:0,T:0,C:0,O:0}, recSum: {W:0,L:0,T:0,C:0,O:0},
+                    closeAll: {W:0,L:0,T:0,C:0,O:0}, closePros: {W:0,L:0,T:0,C:0,O:0}, closeOther: {W:0,L:0,T:0,C:0,O:0},
+                    stFound: {W:0,L:0,T:0,C:0,O:0}, stProc: {W:0,L:0,T:0,C:0,O:0}, stFreeze: {W:0,L:0,T:0,C:0,O:0}, stSumm: {W:0,L:0,T:0,C:0,O:0}, stPros: {W:0,L:0,T:0,C:0,O:0}
                 };
 
                 finalData.forEach(item => {
-                    const code = getCaseCode(item.caseId);
+                    const c = getCode(item.caseId);
                     const s = item.status || '';
-                    if (codes.includes(code)) {
-                        summaryCounts.total[code]++;
-                        const isAppointing = s.includes('ติดต่อผู้แจ้ง') || s.includes('นัดหมายผู้แจ้ง');
-                        if (!isAppointing) summaryCounts.interviewed[code]++;
-                        else {
-                            summaryCounts.notInterviewed[code]++;
-                            if (item.parsedDate) {
-                                const diffDays = (new Date() - item.parsedDate) / (1000 * 60 * 60 * 24);
-                                if (diffDays > 7) summaryCounts.over7Days[code]++;
-                            }
-                        }
-                        Object.keys(summaryCounts.statusMap).forEach(key => { if (s.includes(key)) summaryCounts.statusMap[key][code]++; });
-                        summaryCounts.arrests.total[code] += (item.warrantCount || 0);
-                        summaryCounts.arrests.done[code] += (item.arrestedCount || 0);
-                        summaryCounts.arrests.pending[code] += Math.max(0, (item.warrantCount || 0) - (item.arrestedCount || 0));
-                        if (item.isRecovered) { summaryCounts.recovery.cases[code]++; summaryCounts.recovery.sum[code] += (item.recoveredAmount || 0); }
-                        const isPros = s.includes('ส่งสำนวนอัยการ') || s.includes('ส่งพนักงานอัยการ');
-                        const isEnd = s.includes('สิ้นสุด');
-                        if (isPros || isEnd) {
-                            summaryCounts.finish['รวมจบทั้งหมด'][code]++;
-                            if (isPros) summaryCounts.finish['ส่งพนักงานอัยการจริง'][code]++;
-                            else summaryCounts.finish['จบด้วยเหตุผลอื่น'][code]++;
-                        }
-                        if (item.statementAttached) summaryCounts.attachments.statement[code]++;
-                        else summaryCounts.attachments.noStatement[code]++;
-                        if (item.propertyAttached) summaryCounts.attachments.property[code]++;
-                        else summaryCounts.attachments.noProperty[code]++;
+                    counts.total[c]++;
+                    const isAppoint = s.includes('นัดหมาย') || s.includes('ติดต่อผู้แจ้ง');
+                    if (!isAppoint) counts.intv[c]++;
+                    else {
+                        counts.notIntv[c]++;
+                        if (item.parsedDate && (new Date() - item.parsedDate) / 86400000 > 7) counts.over7[c]++;
+                    }
+                    if (item.statementAttached) counts.attStmt[c]++; else counts.noStmt[c]++;
+                    if (item.propertyAttached) counts.attProp[c]++; else counts.noProp[c]++;
+                    counts.arrTot[c] += item.warrantCount; counts.arrDone[c] += item.arrestedCount;
+                    if (item.isRecovered) { counts.recCases[c]++; counts.recSum[c] += item.recoveredAmount; }
+                    
+                    if (s.includes('พบพนักงานสอบสวน')) counts.stFound[c]++;
+                    if (s.includes('ระหว่างดำเนินการ')) counts.stProc[c]++;
+                    if (s.includes('อายัดบัญชี')) counts.stFreeze[c]++;
+                    if (s.includes('หมายเรียก')) counts.stSumm[c]++;
+                    if (s.includes('อัยการ')) counts.stPros[c]++;
+
+                    if (s.includes('สิ้นสุด') || s.includes('อัยการ')) {
+                        counts.closeAll[c]++;
+                        if (s.includes('อัยการ')) counts.closePros[c]++; else counts.closeOther[c]++;
                     }
                 });
 
-                codes.forEach(c => {
-                    const pool = summaryCounts.finish['จบด้วยเหตุผลอื่น'][c];
-                    if (pool > 0) {
-                        summaryCounts.finish['ไม่เข้าพบ'][c] = Math.round(pool * 0.55);
-                        summaryCounts.finish['ถอนคำร้อง'][c] = Math.round(pool * 0.30);
-                        summaryCounts.finish['ติดต่อไม่ได้'][c] = pool - (summaryCounts.finish['ไม่เข้าพบ'][c] + summaryCounts.finish['ถอนคำร้อง'][c]);
-                    }
-                });
-
-                const sumOf = (obj) => codes.reduce((s, c) => s + (obj[c] || 0), 0);
-                const overviewRows = [
+                const sumOfCodes = (obj) => codes.reduce((a, b) => a + (obj[b] || 0), 0);
+                const overview = [
                     ['หัวข้อสรุปภาพรวมแยกตามรหัสประเภทเคส', 'รวม', 'เคส W', 'เคส L', 'เคส T', 'เคส C'],
-                    ['แยกประเภทเคสทั้งหมด', sumOf(summaryCounts.total), summaryCounts.total.W, summaryCounts.total.L, summaryCounts.total.T, summaryCounts.total.C],
+                    ['แยกประเภทเคสทั้งหมด', sumOfCodes(counts.total), counts.total.W, counts.total.L, counts.total.T, counts.total.C],
                     [''], ['การสอบสวนปากคำ (พบพนักงานสอบสวน)'],
-                    ['สอบสวนปากคำแล้ว (ไม่ใช่ ติดต่อ/นัดหมาย)', sumOf(summaryCounts.interviewed), summaryCounts.interviewed.W, summaryCounts.interviewed.L, summaryCounts.interviewed.T, summaryCounts.interviewed.C],
-                    ['ยังไม่สอบสวนปากคำ (รวม)', sumOf(summaryCounts.notInterviewed), summaryCounts.notInterviewed.W, summaryCounts.notInterviewed.L, summaryCounts.notInterviewed.T, summaryCounts.notInterviewed.C],
-                    ['ยังไม่สอบสวนปากคำ เกินกว่า 7 วัน', sumOf(summaryCounts.over7Days), summaryCounts.over7Days.W, summaryCounts.over7Days.L, summaryCounts.over7Days.T, summaryCounts.over7Days.C],
-                    ['ยังไม่สอบสวนปากคำ (สุทธิ) [รวม - เกิน 7 วัน]', sumOf(summaryCounts.notInterviewed) - sumOf(summaryCounts.over7Days), summaryCounts.notInterviewed.W - summaryCounts.over7Days.W, summaryCounts.notInterviewed.L - summaryCounts.over7Days.L, summaryCounts.notInterviewed.T - summaryCounts.over7Days.T, summaryCounts.notInterviewed.C - summaryCounts.over7Days.C],
-                    [''], ['สถานะการแนบไฟล์เจ้าหน้าที่ (อ้างอิงไฟล์แนบไฟล์)'],
-                    ['แนบไฟล์คำให้การ', sumOf(summaryCounts.attachments.statement), summaryCounts.attachments.statement.W, summaryCounts.attachments.statement.L, summaryCounts.attachments.statement.T, summaryCounts.attachments.statement.C],
-                    ['แนบไฟล์บัญชีทรัพย์ถูกประทุษร้าย', sumOf(summaryCounts.attachments.property), summaryCounts.attachments.property.W, summaryCounts.attachments.property.L, summaryCounts.attachments.property.T, summaryCounts.attachments.property.C],
-                    ['ยังไม่แนบไฟล์คำให้การ', sumOf(summaryCounts.attachments.noStatement), summaryCounts.attachments.noStatement.W, summaryCounts.attachments.noStatement.L, summaryCounts.attachments.noStatement.T, summaryCounts.attachments.noStatement.C],
-                    ['ยังไม่แนบไฟล์บัญชีทรัพย์ถูกประทุษร้าย', sumOf(summaryCounts.attachments.noProperty), summaryCounts.attachments.noProperty.W, summaryCounts.attachments.noProperty.L, summaryCounts.attachments.noProperty.T, summaryCounts.attachments.noProperty.C],
+                    ['สอบสวนปากคำแล้ว (ไม่ใช่ ติดต่อ/นัดหมาย)', sumOfCodes(counts.intv), counts.intv.W, counts.intv.L, counts.intv.T, counts.intv.C],
+                    ['ยังไม่สอบสวนปากคำ (รวม)', sumOfCodes(counts.notIntv), counts.notIntv.W, counts.notIntv.L, counts.notIntv.T, counts.notIntv.C],
+                    ['ยังไม่สอบสวนปากคำ เกินกว่า 7 วัน', sumOfCodes(counts.over7), counts.over7.W, counts.over7.L, counts.over7.T, counts.over7.C],
+                    ['ยังไม่สอบสวนปากคำ (สุทธิ) [รวม - เกิน 7 วัน]', sumOfCodes(counts.notIntv)-sumOfCodes(counts.over7), counts.notIntv.W-counts.over7.W, counts.notIntv.L-counts.over7.L, counts.notIntv.T-counts.over7.T, counts.notIntv.C-counts.over7.C],
+                    [''], ['สถานะการแนบไฟล์เจ้าหน้าที่'],
+                    ['แนบไฟล์คำให้การ', sumOfCodes(counts.attStmt), counts.attStmt.W, counts.attStmt.L, counts.attStmt.T, counts.attStmt.C],
+                    ['แนบไฟล์บัญชีทรัพย์ฯ', sumOfCodes(counts.attProp), counts.attProp.W, counts.attProp.L, counts.attProp.T, counts.attProp.C],
+                    ['ยังไม่แนบไฟล์คำให้การ', sumOfCodes(counts.noStmt), counts.noStmt.W, counts.noStmt.L, counts.noStmt.T, counts.noStmt.C],
+                    ['ยังไม่แนบไฟล์บัญชีทรัพย์ฯ', sumOfCodes(counts.noProp), counts.noProp.W, counts.noProp.L, counts.noProp.T, counts.noProp.C],
                     [''], ['สถานะทางคดี (จำแนกตามขั้นตอนงาน)'],
-                    ...Object.entries(summaryCounts.statusMap).map(([label, v]) => [ label, sumOf(v), v.W, v.L, v.T, v.C ]),
+                    ['พบพนักงานสอบสวน', sumOfCodes(counts.stFound), counts.stFound.W, counts.stFound.L, counts.stFound.T, counts.stFound.C],
+                    ['ระหว่างดำเนินการ', sumOfCodes(counts.stProc), counts.stProc.W, counts.stProc.L, counts.stProc.T, counts.stProc.C],
+                    ['อายัดบัญชี', sumOfCodes(counts.stFreeze), counts.stFreeze.W, counts.stFreeze.L, counts.stFreeze.T, counts.stFreeze.C],
+                    ['ออกหมายเรียก', sumOfCodes(counts.stSumm), counts.stSumm.W, counts.stSumm.L, counts.stSumm.T, counts.stSumm.C],
+                    ['ส่งสำนวนอัยการ', sumOfCodes(counts.stPros), counts.stPros.W, counts.stPros.L, counts.stPros.T, counts.stPros.C],
                     [''], ['จำนวนหมายจับสะสม'],
-                    ['หมายจับทั้งหมด (หมาย)', sumOf(summaryCounts.arrests.total), summaryCounts.arrests.total.W, summaryCounts.arrests.total.L, summaryCounts.arrests.total.T, summaryCounts.arrests.total.C],
-                    ['จับกุมแล้ว (หมาย)', sumOf(summaryCounts.arrests.done), summaryCounts.arrests.done.W, summaryCounts.arrests.done.L, summaryCounts.arrests.done.T, summaryCounts.arrests.done.C],
-                    ['ยังไม่จับกุม (หมาย)', sumOf(summaryCounts.arrests.pending), summaryCounts.arrests.pending.W, summaryCounts.arrests.pending.L, summaryCounts.arrests.pending.T, summaryCounts.arrests.pending.C],
+                    ['จับกุมแล้ว (หมาย)', sumOfCodes(counts.arrDone), counts.arrDone.W, counts.arrDone.L, counts.arrDone.T, counts.arrDone.C],
+                    ['ยังไม่จับกุม (หมาย)', sumOfCodes(counts.arrTot)-sumOfCodes(counts.arrDone), counts.arrTot.W-counts.arrDone.W, counts.arrTot.L-counts.arrDone.L, counts.arrTot.T-counts.arrDone.T, counts.arrTot.C-counts.arrDone.C],
                     [''], ['ได้รับเงินคืน'],
-                    ['จำนวนเคสที่ได้คืน (ราย)', sumOf(summaryCounts.recovery.cases), summaryCounts.recovery.cases.W, summaryCounts.recovery.cases.L, summaryCounts.recovery.cases.T, summaryCounts.recovery.cases.C],
-                    ['มูลค่ารวมเงินคืน (บาท)', sumOf(summaryCounts.recovery.sum), summaryCounts.recovery.sum.W, summaryCounts.recovery.sum.L, summaryCounts.recovery.sum.T, summaryCounts.recovery.sum.C],
+                    ['จำนวนเคสที่ได้คืน (ราย)', sumOfCodes(counts.recCases), counts.recCases.W, counts.recCases.L, counts.recCases.T, counts.recCases.C],
+                    ['มูลค่ารวมเงินคืน (บาท)', sumOfCodes(counts.recSum), counts.recSum.W, counts.recSum.L, counts.recSum.T, counts.recSum.C],
                     [''], ['สิ้นสุดคดี และ ส่งอัยการรวม'],
-                    ['สิ้นสุด + ส่งพนักงานอัยการรวม (ทั้งหมด)', sumOf(summaryCounts.finish['รวมจบทั้งหมด']), summaryCounts.finish['รวมจบทั้งหมด'].W, summaryCounts.finish['รวมจบทั้งหมด'].L, summaryCounts.finish['รวมจบทั้งหมด'].T, summaryCounts.finish['รวมจบทั้งหมด'].C],
-                    [' - ผู้เสียหายไม่เข้าพบ (ประมาณการ 55%)', sumOf(summaryCounts.finish['ไม่เข้าพบ']), summaryCounts.finish['ไม่เข้าพบ'].W, summaryCounts.finish['ไม่เข้าพบ'].L, summaryCounts.finish['ไม่เข้าพบ'].T, summaryCounts.finish['ไม่เข้าพบ'].C],
-                    [' - ผู้เสียหายถอนคำร้อง (ประมาณการ 30%)', sumOf(summaryCounts.finish['ถอนคำร้อง']), summaryCounts.finish['ถอนคำร้อง'].W, summaryCounts.finish['ถอนคำร้อง'].L, summaryCounts.finish['ถอนคำร้อง'].T, summaryCounts.finish['ถอนคำร้อง'].C],
-                    [' - ติดต่อผู้เสียหายไม่ได้ (ประมาณการ 15%)', sumOf(summaryCounts.finish['ติดต่อไม่ได้']), summaryCounts.finish['ติดต่อไม่ได้'].W, summaryCounts.finish['ติดต่อไม่ได้'].L, summaryCounts.finish['ติดต่อไม่ได้'].T, summaryCounts.finish['ติดต่อไม่ได้'].C],
-                    [' - สิ้นสุดส่งพนักงานอัยการ', sumOf(summaryCounts.finish['ส่งพนักงานอัยการจริง']), summaryCounts.finish['ส่งพนักงานอัยการจริง'].W, summaryCounts.finish['ส่งพนักงานอัยการจริง'].L, summaryCounts.finish['ส่งพนักงานอัยการจริง'].T, summaryCounts.finish['ส่งพนักงานอัยการจริง'].C]
+                    ['สิ้นสุด + ส่งพนักงานอัยการรวม', sumOfCodes(counts.closeAll), counts.closeAll.W, counts.closeAll.L, counts.closeAll.T, counts.closeAll.C],
+                    [' - ผู้เสียหายไม่เข้าพบ (ประมาณการ 55%)', Math.round(sumOfCodes(counts.closeOther)*0.55), Math.round(counts.closeOther.W*0.55), Math.round(counts.closeOther.L*0.55), Math.round(counts.closeOther.T*0.55), Math.round(counts.closeOther.C*0.55)],
+                    [' - ผู้เสียหายถอนคำร้อง (ประมาณการ 30%)', Math.round(sumOfCodes(counts.closeOther)*0.30), Math.round(counts.closeOther.W*0.30), Math.round(counts.closeOther.L*0.30), Math.round(counts.closeOther.T*0.30), Math.round(counts.closeOther.C*0.30)],
+                    [' - ติดต่อไม่ได้ (ประมาณการ 15%)', sumOfCodes(counts.closeOther)-Math.round(sumOfCodes(counts.closeOther)*0.55)-Math.round(sumOfCodes(counts.closeOther)*0.30), counts.closeOther.W-Math.round(counts.closeOther.W*0.55)-Math.round(counts.closeOther.W*0.30), counts.closeOther.L-Math.round(counts.closeOther.L*0.55)-Math.round(counts.closeOther.L*0.30), counts.closeOther.T-Math.round(counts.closeOther.T*0.55)-Math.round(counts.closeOther.T*0.30), counts.closeOther.C-Math.round(counts.closeOther.C*0.55)-Math.round(counts.closeOther.C*0.30)],
+                    [' - สิ้นสุดส่งพนักงานอัยการ', sumOfCodes(counts.closePros), counts.closePros.W, counts.closePros.L, counts.closePros.T, counts.closePros.C]
                 ];
+
                 const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(overviewRows), "บทสรุปภาพรวม");
-                const typeGroups = {};
-                finalData.forEach(item => {
-                    const type = item.type || "ไม่ระบุ";
-                    if (!typeGroups[type]) typeGroups[type] = { warrants: 0, prosecuted: 0, arrests: 0, cases: 0, recoveredCount: 0, recoveredSum: 0 };
-                    typeGroups[type].cases += 1; typeGroups[type].warrants += (item.warrantCount || 0); typeGroups[type].arrests += (item.arrestedCount || 0);
-                    if (item.status?.includes('ส่งสำนวนอัยการ') || item.status === 'ส่งพนักงานอัยการ') typeGroups[type].prosecuted += 1;
-                    if (item.isRecovered) { typeGroups[type].recoveredCount += 1; typeGroups[type].recoveredSum += (item.recoveredAmount || 0); }
-                });
-                const summaryData = Object.entries(typeGroups).map(([type, data]) => ({ 'ประเภทคดี': type, 'จำนวนคดีรับแจ้ง': data.cases, 'จำนวนหมายจับรวม': data.warrants, 'จำนวนที่ส่งอัยการรวม': data.prosecuted, 'จำนวนจับกุมรวม': data.arrests, 'จำนวนเคสที่ได้รับเงินคืน': data.recoveredCount, 'ยอดเงินที่ได้รับคืน (บาท)': data.recoveredSum })).sort((a, b) => a['ประเภทคดี'].localeCompare(b['ประเภทคดี']));
-                XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryData), "สรุปตามประเภทคดี");
-                const detailRows = finalData.map(item => ({ 'เลขรับแจ้ง': item.caseId, 'วันที่': item.dateStr, 'ประเภท': item.type, 'สถานะ': item.status, 'พนักงานสอบสวน': item.officer, 'เงินคืน': item.recoveredAmount, 'แนบคำให้การ': item.statementAttached ? 'แนบแล้ว' : '', 'แนบบัญชีทรัพย์': item.propertyAttached ? 'แนบแล้ว' : '' }));
-                XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), "รายละเอียดคดี");
-                XLSX.writeFile(workbook, `สถิติคดีออนไลน์_สมบูรณ์.xlsx`);
+                XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(overview), "บทสรุปภาพรวม");
+                XLSX.writeFile(workbook, `สถิติคดีออนไลน์_บทสรุปภาพรวม.xlsx`);
             };
 
             return (
-                <div className="p-4 md:p-8 max-w-[1600px] mx-auto">
-                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <div className="p-4 md:p-8 max-w-[1600px] mx-auto min-h-screen">
+                    {/* Header */}
+                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                         <div>
                             <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 flex items-center gap-3 leading-tight"><div className="p-2 bg-indigo-700 rounded-xl text-white shadow-lg"><Icon name="shield" size={28} /></div>สถิติและผลดำเนินการคดีอาชญากรรมทางเทคโนโลยี</h1>
-                            <p className="text-slate-500 mt-2 font-medium text-sm"><Icon name="info" size={14} className={loadStatus.includes('สำเร็จ') ? "text-emerald-600 inline mr-1" : "text-slate-400 inline mr-1"} /><span>{loadStatus || 'กรุณาอัปโหลดไฟล์สถิติหลักเพื่อเริ่มใช้งาน'}</span></p>
+                            <p className="text-slate-500 mt-2 font-medium text-sm flex items-center gap-2"><Icon name="info" size={14} className={loadStatus.includes('สำเร็จ') ? "text-emerald-600 font-bold" : "text-slate-400"} /><span>{loadStatus || 'กรุณาอัปโหลดไฟล์สถิติหลักเพื่อเริ่มใช้งาน'}</span></p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {finalData.length > 0 && (<button onClick={exportToExcel} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl transition-all shadow-md font-bold text-xs"><Icon name="file-spreadsheet" size={16} /> ส่งออก Excel บทสรุป</button>)}
                             <label className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md font-bold text-xs"><Icon name="upload" size={16} /> สถิติหลัก<input type="file" accept=".csv" onChange={handleMainFileUpload} className="hidden" /></label>
                             <label className="flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md font-bold text-xs"><Icon name="hand-coins" size={16} /> ข้อมูลเงินคืน<input type="file" accept=".csv" onChange={handleRecoveryFileUpload} className="hidden" /></label>
                             <label className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md font-bold text-xs"><Icon name="gavel" size={16} /> ข้อมูลหมายจับ<input type="file" accept=".csv" onChange={handleArrestFileUpload} className="hidden" /></label>
-                            <label className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md font-bold text-xs"><Icon name="file-plus" size={16} /> สถานะแนบไฟล์เจ้าหน้าที่<input type="file" accept=".csv" onChange={handleAttachmentFileUpload} className="hidden" /></label>
+                            <label className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md font-bold text-xs"><Icon name="file-plus" size={16} /> แนบไฟล์เจ้าหน้าที่<input type="file" accept=".csv" onChange={handleAttachmentFileUpload} className="hidden" /></label>
                         </div>
                     </header>
-                    <section className="mb-8 bg-white p-6 rounded-3xl shadow-sm border border-slate-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-                        <div className="lg:col-span-1 grid grid-cols-1 gap-2">
-                            <div><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 text-center font-bold">ช่วงวันที่รับแจ้ง</label>
-                            <div className="flex gap-1">
-                                <select className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold outline-none" value={startMonth} onChange={e => setStartMonth(e.target.value)}>{THAI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
-                                <select className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-1 py-2 text-[11px] font-bold outline-none" value={startYear} onChange={e => setStartYear(e.target.value)}>{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select>
-                                <span className="self-center font-bold text-slate-300">-</span>
-                                <select className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-[11px] font-bold outline-none" value={endMonth} onChange={e => setEndMonth(e.target.value)}>{THAI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
-                                <select className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-1 py-2 text-[11px] font-bold outline-none" value={endYear} onChange={e => setEndYear(e.target.value)}>{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select>
-                            </div></div>
+
+                    {/* Filter Section */}
+                    <section className="mb-8 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col gap-6 filter-container">
+                        {/* Row 1: Date Range - Full Width Row */}
+                        <div className="w-full">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-left">ช่วงวันที่รับแจ้ง</label>
+                            <div className="flex flex-wrap gap-2 items-center bg-slate-50 p-3 rounded-2xl border border-slate-100 w-full lg:w-fit">
+                                <select className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none min-w-[130px]" value={startMonth} onChange={e => setStartMonth(e.target.value)}>{THAI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+                                <select className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none w-28" value={startYear} onChange={e => setStartYear(e.target.value)}>{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                                <span className="font-black text-slate-300 px-3 uppercase text-xs">ถึง</span>
+                                <select className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none min-w-[130px]" value={endMonth} onChange={e => setEndMonth(e.target.value)}>{THAI_MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+                                <select className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none w-28" value={endYear} onChange={e => setEndYear(e.target.value)}>{availableYears.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                            </div>
                         </div>
-                        <div className="lg:col-span-1" ref={dropdownRef}><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 font-bold text-center">กรองประเภทคดี</label>
-                        <div className="relative"><button onClick={() => setShowTypeDropdown(!showTypeDropdown)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-left flex justify-between items-center h-10 shadow-sm transition-colors hover:bg-slate-100"><span className="truncate">{selectedTypes.length === 0 ? 'ทุกประเภทคดี' : `เลือกแล้ว ${selectedTypes.length} ประเภท`}</span><Icon name="chevron-down" size={12} /></button>
-                        {showTypeDropdown && (<div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl dropdown-content p-2 z-[100]"><div className="flex justify-between p-2 border-b mb-2"><button onClick={() => setSelectedTypes([])} className="text-[9px] font-black text-blue-600">ล้าง</button><button onClick={() => setSelectedTypes(uniqueCategories)} className="text-[9px] font-black text-blue-600">ทั้งหมด</button></div>{uniqueCategories.map(cat => ( <label key={cat} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"><input type="checkbox" className="rounded border-slate-300 text-indigo-600" checked={selectedTypes.includes(cat)} onChange={() => setSelectedTypes(prev => prev.includes(cat) ? prev.filter(t => t !== cat) : [...prev, cat])} /><span className="text-[10px] font-bold text-slate-700">{cat}</span></label>))}</div>)}</div></div>
-                        <div className="lg:col-span-1" ref={statusDropdownRef}><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 font-bold text-center">กรองสถานะคดี</label>
-                        <div className="relative"><button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-left flex justify-between items-center h-10 shadow-sm transition-colors hover:bg-slate-100"><span className="truncate">{selectedStatuses.length === 0 ? 'ทุกสถานะงาน' : `เลือกแล้ว ${selectedStatuses.length} สถานะ`}</span><Icon name="chevron-down" size={12} /></button>
-                        {showStatusDropdown && (<div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl dropdown-content p-2 z-[100]"><div className="flex justify-between p-2 border-b mb-2"><button onClick={() => setSelectedStatuses([])} className="text-[9px] font-black text-blue-600">ล้าง</button><button onClick={() => setSelectedStatuses(uniqueStatuses)} className="text-[9px] font-black text-blue-600">ทั้งหมด</button></div>{uniqueStatuses.map(status => (<label key={status} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"><input type="checkbox" className="rounded border-slate-300 text-indigo-600" checked={selectedStatuses.includes(status)} onChange={() => setSelectedStatuses(prev => prev.includes(status) ? prev.filter(t => t !== status) : [...prev, status])} /><span className="text-[10px] font-bold text-slate-700">{status}</span></label>))}</div>)}</div></div>
-                        <div className="lg:col-span-1"><label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 font-bold text-center">ค้นหาข้อความ</label>
-                        <div className="relative"><Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="text" placeholder="CASE ID / ชื่อ..." className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs font-bold h-10 outline-none focus:ring-2 focus:ring-indigo-500/20" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div></div>
-                        <div className="lg:col-span-1 bg-pink-600 text-white p-2 rounded-2xl text-center shadow-lg h-20 flex flex-col justify-center transition-transform hover:scale-105"><p className="text-[9px] font-bold uppercase tracking-widest opacity-80 leading-none mb-1 text-center">ยอดเงินคืนรวม</p><p className="text-xl font-black leading-none font-mono">฿{stats.totalRecoveredMoney.toLocaleString()}</p></div>
+
+                        {/* Row 2: Other Filters + Small Money Card */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 items-end">
+                            <div className="lg:col-span-4 filter-item" ref={dropdownRef}>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">กรองประเภทคดี</label>
+                                <div className="relative"><button onClick={() => setShowTypeDropdown(!showTypeDropdown)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-left flex justify-between items-center h-10 transition-colors hover:bg-slate-100"><span className="truncate">{selectedTypes.length === 0 ? 'ทุกประเภทคดี' : `เลือกแล้ว ${selectedTypes.length} ประเภท`}</span><Icon name="chevron-down" size={12} /></button>
+                                {showTypeDropdown && (<div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl dropdown-content p-2"><div className="flex justify-between p-2 border-b mb-2"><button onClick={() => setSelectedTypes([])} className="text-[9px] font-black text-blue-600 uppercase">ล้าง</button><button onClick={() => setSelectedTypes(uniqueCategories)} className="text-[9px] font-black text-blue-600 uppercase">ทั้งหมด</button></div>{uniqueCategories.map(cat => ( <label key={cat} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"><input type="checkbox" className="rounded border-slate-300 text-indigo-600" checked={selectedTypes.includes(cat)} onChange={() => setSelectedTypes(prev => prev.includes(cat) ? prev.filter(t => t !== cat) : [...prev, cat])} /><span className="text-[10px] font-bold text-slate-700">{cat}</span></label>))}</div>)}</div>
+                            </div>
+                            <div className="lg:col-span-3 filter-item" ref={statusDropdownRef}>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 font-bold">กรองสถานะ</label>
+                                <div className="relative"><button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-left flex justify-between items-center h-10 shadow-sm transition-colors hover:bg-slate-100"><span className="truncate">{selectedStatuses.length === 0 ? 'ทุกสถานะ' : `เลือกแล้ว ${selectedStatuses.length} สถานะ`}</span><Icon name="chevron-down" size={12} /></button>
+                                {showStatusDropdown && (<div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl dropdown-content p-2 z-[100]"><div className="flex justify-between p-2 border-b mb-2"><button onClick={() => setSelectedStatuses([])} className="text-[9px] font-black text-blue-600">ล้าง</button><button onClick={() => setSelectedStatuses(uniqueStatuses)} className="text-[9px] font-black text-blue-600">ทั้งหมด</button></div>{uniqueStatuses.map(status => (<label key={status} className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer"><input type="checkbox" className="rounded border-slate-300 text-indigo-600" checked={selectedStatuses.includes(status)} onChange={() => setSelectedStatuses(prev => prev.includes(status) ? prev.filter(t => t !== status) : [...prev, status])} /><span className="text-[10px] font-bold text-slate-700">{status}</span></label>))}</div>)}</div>
+                            </div>
+                            <div className="lg:col-span-3 filter-item">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 font-bold">ค้นหา</label>
+                                <div className="relative"><Icon name="search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input type="text" placeholder="CASE ID..." className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs font-bold h-10 outline-none focus:ring-2 focus:ring-indigo-500/20" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+                            </div>
+                            <div className="lg:col-span-2 bg-pink-600 text-white p-2 rounded-2xl text-center shadow-lg h-14 flex flex-col justify-center transition-transform hover:scale-105 filter-item min-w-[110px]">
+                                 <p className="text-[8px] font-bold uppercase tracking-widest opacity-80 leading-none mb-1">ยอดเงินคืน</p>
+                                 <p className="text-[10px] font-black leading-none font-mono truncate">฿{stats.totalRecoveredMoney.toLocaleString()}</p>
+                            </div>
+                        </div>
                     </section>
+
+                    {/* Summary Stats Cards Grid */}
                     <section className="mb-10 text-center">
-                        <div className="flex items-center gap-2 mb-6 border-l-4 border-indigo-600 pl-4"><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">สรุปผลการปฏิบัติงาน (คลิกเข้าดูแต่ละสถานะ)</h2></div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 mb-4 text-center">
+                        <div className="flex items-center gap-2 mb-6 border-l-4 border-indigo-600 pl-4"><h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">สรุปผลการปฏิบัติงาน</h2></div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 mb-4">
                             {stats.operationalStats.slice(0, 4).map((op, idx) => (
-                                <div key={idx} onClick={() => { setSelectedDetail(op); setModalTab('cases'); setModalSearch(''); }} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-b-4 cursor-pointer hover:-translate-y-2 hover:shadow-xl transition-all active:scale-95" style={{ borderBottomColor: op.color }}>
+                                <div key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm border-b-4 transition-all" style={{ borderBottomColor: op.color }}>
                                     <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-2xl" style={{ backgroundColor: `${op.color}15`, color: op.color }}><Icon name={op.icon} size={24} /></div><span className="text-3xl font-black" style={{ color: op.color }}>{op.value.toLocaleString()}</span></div>
-                                    <p className="text-xs font-black text-slate-600 mb-1 leading-tight">{op.name}</p><p className="text-[10px] text-slate-400 font-bold leading-tight">{op.desc}</p>
+                                    <p className="text-xs font-black text-slate-600 mb-1 leading-tight text-left">{op.name}</p><p className="text-[10px] text-slate-400 font-bold leading-tight text-left">{op.desc}</p>
                                 </div>
                             ))}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 text-center">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4">
                             {stats.operationalStats.slice(4).map((op, idx) => (
-                                <div key={idx} onClick={() => { setSelectedDetail(op); setModalTab('cases'); setModalSearch(''); }} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm border-b-4 cursor-pointer hover:-translate-y-2 hover:shadow-xl transition-all active:scale-95" style={{ borderBottomColor: op.color }}>
+                                <div key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm border-b-4 transition-all" style={{ borderBottomColor: op.color }}>
                                     <div className="flex justify-between items-start mb-4"><div className="p-3 rounded-2xl" style={{ backgroundColor: `${op.color}15`, color: op.color }}><Icon name={op.icon} size={24} /></div><span className="text-3xl font-black" style={{ color: op.color }}>{op.value.toLocaleString()}</span></div>
-                                    <p className="text-xs font-black text-slate-600 mb-1 leading-tight">{op.name}</p><p className="text-[10px] text-slate-400 font-bold leading-tight">{op.desc}</p>
+                                    <p className="text-xs font-black text-slate-600 mb-1 leading-tight text-left">{op.name}</p><p className="text-[10px] text-slate-400 font-bold leading-tight text-left">{op.desc}</p>
                                 </div>
                             ))}
                         </div>
@@ -532,4 +477,3 @@
     </script>
 </body>
 </html>
- 
